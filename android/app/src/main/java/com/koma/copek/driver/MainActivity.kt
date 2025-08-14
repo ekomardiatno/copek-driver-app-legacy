@@ -1,4 +1,4 @@
-package com.copekdriverlegacy
+package com.koma.copek.driver
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

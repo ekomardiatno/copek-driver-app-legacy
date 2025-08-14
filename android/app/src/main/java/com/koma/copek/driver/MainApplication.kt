@@ -1,4 +1,4 @@
-package com.copekdriverlegacy
+package com.koma.copek.driver
 
 import android.app.Application
 import com.facebook.react.PackageList
