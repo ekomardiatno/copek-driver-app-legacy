@@ -136,6 +136,7 @@ class Login extends Component {
         .then(res => {
           let user = res.data;
           if (res.status === 'OK') {
+            AsyncStorage.setItem('token', res.token)
             this._saveDriver(user);
           } else if (res.status === 'NOT FOUND') {
             Alert.alert(
@@ -209,6 +210,7 @@ class Login extends Component {
     this.appendPendingPromise(wrappedPromise);
     wrappedPromise.promise
       .then(res => {
+        console.log(res)
         if (res.status === 'OK') {
           AsyncStorage.setItem(
             'user_logged_in',
@@ -271,7 +273,7 @@ class Login extends Component {
 
   _promiseLogin = data => {
     return new Promise((resolve, reject) => {
-      console.log(`${REST_API_URL}driver/login`);
+      console.log(`${REST_API_URL}driver/login`, data)
       fetch(`${REST_API_URL}driver/login`, {
         method: 'POST',
         headers: {

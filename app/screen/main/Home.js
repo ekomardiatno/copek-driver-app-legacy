@@ -333,10 +333,16 @@ class Home extends Component {
   _promiseGetDriver = () => {
     const { driver } = this.state;
     return new Promise((resolve, reject) => {
-      fetch(`${REST_API_URL}driver/${driver.driverPhone}`)
-        .then(res => res.json())
-        .then(resolve)
-        .catch(reject);
+      AsyncStorage.getItem('token').then(v => {
+        fetch(`${REST_API_URL}driver/${driver.driverPhone}`, {
+          headers: {
+            Authorization: `Bearer ${v}`,
+          },
+        })
+          .then(res => res.json())
+          .then(resolve)
+          .catch(reject);
+      });
     });
   };
 
@@ -424,42 +430,24 @@ class Home extends Component {
       () => {
         let status = this.state.status ? false : true;
 
-        const wrappedPromise2 = cancellablePromise(
-          this._promiseStatusMongoDb(),
-        );
-        this.appendPendingPromise(wrappedPromise2);
-        wrappedPromise2.promise
-          .then(() => {
-            if (status === true) {
-              this._checkAndChangingOrderStatus(status);
-            } else {
-              this.setState(
-                {
-                  status: status,
-                  isKeepAwake: false,
-                },
-                () => {
-                  this.setState({
-                    changingStatus: false,
-                  });
-                  AsyncStorage.setItem('status', JSON.stringify(status));
-                  this._stopGeolocationService();
-                },
-              );
-            }
-          })
-          .then(() => {
-            this.removePendingPromise(wrappedPromise2);
-          })
-          .catch(() => {
-            this.setState({
-              changingStatus: false,
-            });
-            Alert.alert(
-              'Koneksi gagal',
-              'Terjadi kesalahan pada sistem, pastikan Anda telah menggunakan aplikasi terbaru dan coba lagi nanti',
-            );
-          });
+        if (status === true) {
+          this._checkAndChangingOrderStatus(status);
+        } else {
+          this._changeStatusOnMongo(false);
+          this.setState(
+            {
+              status: status,
+              isKeepAwake: false,
+            },
+            () => {
+              this.setState({
+                changingStatus: false,
+              });
+              AsyncStorage.setItem('status', JSON.stringify(status));
+              this._stopGeolocationService();
+            },
+          );
+        }
       },
     );
   };
@@ -502,8 +490,34 @@ class Home extends Component {
       })
       .then(() => this.removePendingPromise(wrappedPromise))
       .catch(_err => {
+        this.setState({
+          changingStatus: false,
+          doActivating: false
+        });
         Alert.alert(
           'Gagal membuat pesanan',
+          'Terjadi kesalahan pada sistem, pastikan Anda telah menggunakan aplikasi terbaru dan coba lagi nanti',
+        );
+      });
+  };
+
+  _changeStatusOnMongo = status => {
+    const wrappedPromise2 = cancellablePromise(
+      this._promiseStatusMongoDb(status),
+    );
+    this.appendPendingPromise(wrappedPromise2);
+    wrappedPromise2.promise
+      .then(() => {
+        this.removePendingPromise(wrappedPromise2);
+      })
+      .catch(() => {
+        this.setState({
+          changingStatus: false,
+          status: !status,
+          doActivating: false
+        });
+        Alert.alert(
+          'Koneksi gagal',
           'Terjadi kesalahan pada sistem, pastikan Anda telah menggunakan aplikasi terbaru dan coba lagi nanti',
         );
       });
@@ -548,9 +562,10 @@ class Home extends Component {
           this.appendPendingPromise(wrappedPromise);
           wrappedPromise.promise
             .then(res => {
-              if (parseInt(res.driverSaldo) > 10000) {
+              if (parseInt(res.driverSaldo) >= 10000) {
                 this.sound();
                 Vibration.vibrate(50);
+                this._changeStatusOnMongo(status);
                 this.setState(
                   {
                     status: status,
@@ -591,6 +606,7 @@ class Home extends Component {
             .catch(_err => {
               this.setState({
                 changingStatus: false,
+                doActivating: false,
               });
               Alert.alert(
                 'Gagal mengubah status',
@@ -618,17 +634,20 @@ class Home extends Component {
             filtered = filtered.map(a => {
               return a.orderId;
             });
-            fetch(`${REST_API_URL}order/checking`, {
-              method: 'post',
-              headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(filtered),
-            })
-              .then(res => res.json())
-              .then(resolve)
-              .catch(reject);
+            AsyncStorage.getItem('token').then(v => {
+              fetch(`${REST_API_URL}order/checking`, {
+                method: 'post',
+                headers: {
+                  Accept: 'application/json',
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${v}`,
+                },
+                body: JSON.stringify(filtered),
+              })
+                .then(res => res.json())
+                .then(resolve)
+                .catch(reject);
+            });
           } else {
             resolve([]);
           }
@@ -639,9 +658,9 @@ class Home extends Component {
     });
   };
 
-  _promiseStatusMongoDb = () => {
-    let { driver, status } = this.state;
-    status = status ? 'off' : 'on';
+  _promiseStatusMongoDb = status => {
+    let { driver } = this.state;
+    status = status ? 'on' : 'off';
     return new Promise((resolve, reject) => {
       fetch(`${EXPRESS_URL}drivers/${driver.driverId}`, {
         method: 'PATCH',
@@ -667,10 +686,16 @@ class Home extends Component {
   _fetchSaldo = () => {
     const { driver } = this.state;
     return new Promise((resolve, reject) => {
-      fetch(`${REST_API_URL}driver/${driver.driverPhone}/driverSaldo`)
-        .then(res => res.json())
-        .then(resolve)
-        .catch(reject);
+      AsyncStorage.getItem('token').then(v => {
+        fetch(`${REST_API_URL}driver/${driver.driverPhone}/driverSaldo`, {
+          headers: {
+            Authorization: `Bearer ${v}`,
+          },
+        })
+          .then(res => res.json())
+          .then(resolve)
+          .catch(reject);
+      });
     });
   };
 

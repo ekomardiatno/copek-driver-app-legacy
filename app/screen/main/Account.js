@@ -43,30 +43,36 @@ class Account extends Component {
     if (this.didFocusListener) this.didFocusListener();
   }
 
-  _getProfile = () => {
+  _getProfile = async () => {
     AsyncStorage.getItem('user_logged_in', (_err, user) => {
       if (user !== null) {
         user = JSON.parse(user);
-        fetch(`${REST_API_URL}driver/${user.driverPhone}/driverSaldo`)
-          .then(res => res.json())
-          .then(res => {
-            this.setState({
-              saldo: parseInt(res.driverSaldo),
-              profile: user,
-            });
+        AsyncStorage.getItem('token').then(v => {
+          fetch(`${REST_API_URL}driver/${user.driverPhone}/driverSaldo`, {
+            headers: {
+              Authorization: `Bearer ${v}`,
+            },
           })
-          .catch(_err => {
-            Alert.alert(
-              'Koneksi gagal',
-              'Terjadi kesalahan pada sistem, coba lagi nanti',
-              [
-                {
-                  text: 'Coba lagi',
-                  onPress: this._getProfile,
-                },
-              ],
-            );
-          });
+            .then(res => res.json())
+            .then(res => {
+              this.setState({
+                saldo: parseInt(res.driverSaldo),
+                profile: user,
+              });
+            })
+            .catch(_err => {
+              Alert.alert(
+                'Koneksi gagal',
+                'Terjadi kesalahan pada sistem, coba lagi nanti',
+                [
+                  {
+                    text: 'Coba lagi',
+                    onPress: this._getProfile,
+                  },
+                ],
+              );
+            });
+        });
       }
     });
   };

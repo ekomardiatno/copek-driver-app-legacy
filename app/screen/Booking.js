@@ -79,9 +79,9 @@ export default class Booking extends Component {
       readyConnect: false,
     };
     this.sound = () => {
-      SoundPlayer.playSoundFile('iphone_notification', 'mp3')
-      return SoundPlayer.getInfo()
-    }
+      SoundPlayer.playSoundFile('iphone_notification', 'mp3');
+      return SoundPlayer.getInfo();
+    };
 
     let data = this.props.route.params?.data;
     if (data) {
@@ -402,10 +402,15 @@ export default class Booking extends Component {
     }
   };
 
-  _getOrderStatus = () => {
+  _getOrderStatus = async () => {
     const { orderId } = this.state.data;
     if (orderId !== null) {
-      fetch(`${REST_API_URL}order/${orderId}`)
+      const token = await AsyncStorage.getItem('token');
+      fetch(`${REST_API_URL}order/${orderId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
         .then(res => res.json())
         .then(res => {
           if (res !== null) {
@@ -781,33 +786,39 @@ export default class Booking extends Component {
 
   _promiseChangeStatusServer = data => {
     return new Promise((resolve, reject) => {
-      fetch(`${REST_API_URL}order/status`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      })
-        .then(res => res.json())
-        .then(resolve)
-        .catch(reject);
+      AsyncStorage.getItem('token').then(v => {
+        fetch(`${REST_API_URL}order/status`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${v}`,
+          },
+          body: JSON.stringify(data),
+        })
+          .then(res => res.json())
+          .then(resolve)
+          .catch(reject);
+      });
     });
   };
 
   _promisePaid = data => {
     return new Promise((resolve, reject) => {
-      fetch(`${REST_API_URL}driver/bayar`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      })
-        .then(res => res.json())
-        .then(resolve)
-        .catch(reject);
+      AsyncStorage.getItem('token').then(v => {
+        fetch(`${REST_API_URL}driver/bayar`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${v}`,
+          },
+          body: JSON.stringify(data),
+        })
+          .then(res => res.json())
+          .then(resolve)
+          .catch(reject);
+      });
     });
   };
 
