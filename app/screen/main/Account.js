@@ -32,7 +32,7 @@ class Account extends Component {
   componentDidMount() {
     this._getProfile();
     this.didFocusListener = this.props.navigation.addListener(
-      'didFocus',
+      'focus',
       () => {
         this._getProfile();
       },
@@ -80,8 +80,12 @@ class Account extends Component {
   _logout = () => {
     AsyncStorage.removeItem('user_logged_in', error => {
       if (!error) {
-        this.props.navigation.replace('Login');
         AsyncStorage.removeItem('orders');
+        AsyncStorage.removeItem('chats')
+        AsyncStorage.removeItem('token')
+        AsyncStorage.removeItem('user_logged_in')
+        AsyncStorage.removeItem('status')
+        this.props.navigation.replace('Login');
       }
     });
   };

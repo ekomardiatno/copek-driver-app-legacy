@@ -13,9 +13,10 @@ import phoneNumFormat from '../helpers/phoneNumFormat'
 import { EXPRESS_URL } from '../tools/Define'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import dateFormatted from '../helpers/dateFormatted'
-const Sound = require('react-native-sound')
+import SoundPlayer from 'react-native-sound-player'
+import { withSafeAreaInsets } from 'react-native-safe-area-context'
 
-export default class Chat extends Component {
+class Chat extends Component {
   constructor(props) {
     super(props)
     this.state = {
@@ -26,7 +27,10 @@ export default class Chat extends Component {
       orderId: null,
       status: ''
     }
-    this.sound = new Sound('iphone_send_sms.mp3', Sound.MAIN_BUNDLE)
+    this.sound = () => {
+      SoundPlayer.playSoundFile('iphone_send_sms', 'mp3')
+      return SoundPlayer.getInfo()
+    }
   }
 
   componentDidMount() {
@@ -166,7 +170,7 @@ export default class Chat extends Component {
             ],
             chatText: ''
           }, () => {
-            this.sound.play()
+            this.sound()
             this._saveOnStorage({
               orderId: chat.orderId,
               sender: chat.sender,
@@ -204,9 +208,9 @@ export default class Chat extends Component {
   render() {
     let { chats, customer } = this.state
     return (
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Color.primary, elevation: 5 }}>
-          <View style={{ padding: 10, paddingLeft: 15 }}>
+      <View style={{ flex: 1, paddingBottom: this.props.insets.bottom }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Color.primary, elevation: 5, paddingTop: this.props.insets.top }}>
+          <View style={{ padding: 10, paddingVertical: 15, paddingLeft: 15 }}>
             <TouchableNativeFeedback
               onPress={() => this.props.navigation.goBack()}
               useForeground={true}
@@ -252,7 +256,7 @@ export default class Chat extends Component {
                 background={TouchableNativeFeedback.Ripple('rgba(0,0,0,.25)', false)}
               >
                 <View style={{ width: 40, height: 40, borderRadius: 40 / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: Color.secondary, overflow: 'hidden' }}>
-                  <Fa iconStyle='solid' color={colorYiq(Color.secondary)} size={18} name="whatsapp" />
+                  <Fa iconStyle='brand' color={colorYiq(Color.secondary)} size={18} name="whatsapp" />
                 </View>
               </TouchableNativeFeedback>
             </View>
@@ -349,3 +353,5 @@ export default class Chat extends Component {
     )
   }
 }
+
+export default withSafeAreaInsets(Chat)

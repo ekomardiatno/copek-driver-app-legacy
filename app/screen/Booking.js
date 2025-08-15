@@ -1,10 +1,10 @@
+/* eslint-disable react-native/no-inline-styles */
 import { Component } from 'react';
 import {
   Text,
   View,
   Alert,
   AppState,
-  Image,
   TouchableNativeFeedback,
   ScrollView,
   BackHandler,
@@ -41,10 +41,11 @@ import phoneNumFormat from '../helpers/phoneNumFormat';
 import cancellablePromise from '../tools/cancellablePromise';
 import Geolocation from '@react-native-community/geolocation';
 import SoundPlayer from 'react-native-sound-player';
+import { withSafeAreaInsets } from 'react-native-safe-area-context';
 const { width, height } = Dimensions.get('window');
 const Sound = require('react-native-sound');
 
-export default class Booking extends Component {
+class Booking extends Component {
   timer;
   timeoutResponse;
   timerAcceptOrder;
@@ -112,6 +113,28 @@ export default class Booking extends Component {
   };
 
   componentDidMount() {
+    this.timerAcceptOrder = setTimeout(
+      function () {
+        AsyncStorage.getItem('orders', (_err, order) => {
+          if (order !== null) {
+            order = JSON.parse(order);
+            let index = order
+              .map(item => {
+                return item.orderId;
+              })
+              .indexOf(this.state.data.orderId.toString());
+            order[index].status = 'cancelled_by_driver';
+            AsyncStorage.setItem('orders', JSON.stringify(order));
+          }
+        });
+        if (this.props.route.params?.stopSoundVibrate) {
+          this.props.route.params?.stopSoundVibrate();
+        }
+        Alert.alert('Melewatkan pesanan', 'Anda baru saja melewatkan pesanan');
+        this.props.navigation.goBack();
+      }.bind(this),
+      10000,
+    );
     this.appState = AppState.addEventListener(
       'change',
       this.__handleAppStateChange,
@@ -539,44 +562,25 @@ export default class Booking extends Component {
           if (this.state.appState == 'background') {
             this._sendNotification(titleNotif, descriptionNotif);
           }
-
-          this.timerAcceptOrder = setTimeout(
-            function () {
-              AsyncStorage.getItem('orders', (_err, order) => {
-                if (order !== null) {
-                  order = JSON.parse(order);
-                  let index = order
-                    .map(item => {
-                      return item.orderId;
-                    })
-                    .indexOf(orderId.toString());
-                  order[index].status = 'cancelled_by_driver';
-                  AsyncStorage.setItem('orders', JSON.stringify(order));
-                }
-              });
-              if (this.props.route.params?.stopSoundVibrate) {
-                this.props.route.params?.stopSoundVibrate();
-              }
-              Alert.alert(
-                'Melewatkan pesanan',
-                'Anda baru saja melewatkan pesanan',
-              );
-              this.props.navigation.goBack();
-            }.bind(this),
-            10000,
-          );
         } else {
           this.setState({
             responseSent: true,
           });
         }
         this._makePolyline();
+        this._mapView.animateToRegion({
+          latitude: origin.geometry.latitude,
+          longitude: origin.geometry.longitude,
+          latitudeDelta: LATITUDE_DELTA,
+          longitudeDelta: LONGITUDE_DELTA,
+        });
       },
     );
   };
 
   _acceptOrder = () => {
     clearTimeout(this.timerAcceptOrder);
+    SoundPlayer.pause();
     if (this.props.route.params?.stopSoundVibrate) {
       this.props.route.params?.stopSoundVibrate();
     }
@@ -620,6 +624,7 @@ export default class Booking extends Component {
 
   _declineOrder = () => {
     clearTimeout(this.timerAcceptOrder);
+    SoundPlayer.pause();
     if (this.props.route.params?.stopSoundVibrate) {
       this.props.route.params?.stopSoundVibrate();
     }
@@ -927,7 +932,7 @@ export default class Booking extends Component {
         }
       }
       return (
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingBottom: this.props.insets.bottom }}>
           <View style={{ flex: 1 }}>
             <MapView
               showsUserLocation={true}
@@ -954,35 +959,21 @@ export default class Booking extends Component {
                   latitude: origin.geometry.latitude,
                   longitude: origin.geometry.longitude,
                 }}
-              >
-                <View style={{ width: 60, height: 60 }}>
-                  {orderType === 'FOOD' && (
-                    <Image
-                      style={{ width: '100%', height: '100%' }}
-                      source={require('../images/icons/resto-marker.png')}
-                    />
-                  )}
-                  {orderType === 'RIDE' && (
-                    <Image
-                      style={{ width: '100%', height: '100%' }}
-                      source={require('../images/icons/passenger-marker.png')}
-                    />
-                  )}
-                </View>
-              </Marker>
+                image={
+                  orderType === 'FOOD'
+                    ? require('../images/icons/resto-marker.png')
+                    : orderType === 'RIDE'
+                    ? require('../images/icons/passenger-marker.png')
+                    : undefined
+                }
+              />
               <Marker
                 coordinate={{
                   latitude: destination.geometry.latitude,
                   longitude: destination.geometry.longitude,
                 }}
-              >
-                <View style={{ width: 60, height: 60 }}>
-                  <Image
-                    style={{ width: '100%', height: '100%' }}
-                    source={require('../images/icons/destination-marker.png')}
-                  />
-                </View>
-              </Marker>
+                image={require('../images/icons/destination-marker.png')}
+              />
               <Direction
                 coordinates={this.state.polyline}
                 strokeWidth={4}
@@ -1215,7 +1206,7 @@ export default class Booking extends Component {
                           }}
                         >
                           <Fa
-                            iconStyle="solid"
+                            iconStyle="brand"
                             name="whatsapp"
                             size={18}
                             color={Color.white}
@@ -1965,3 +1956,5 @@ export default class Booking extends Component {
     }
   }
 }
+
+export default withSafeAreaInsets(Booking);

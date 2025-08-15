@@ -72,6 +72,7 @@ class Home extends Component {
           {
             status: false,
             statusSocketConnection: 'disconnect',
+            doActivating: false,
           },
           () => {
             AsyncStorage.setItem(
@@ -153,6 +154,10 @@ class Home extends Component {
             this.socket.on(
               user.driverId + '_receive_order',
               function (data) {
+                this.setState({
+                  status: false
+                })
+                this._changeStatusOnMongo(false)
                 this._toBooking(data);
               }.bind(this),
             );
@@ -220,11 +225,11 @@ class Home extends Component {
       this._handleAppStateChange,
     );
     this.didFocusSubscription = this.props.navigation.addListener(
-      'didFocus',
+      'focus',
       this._onFocus,
     );
     this.didBlurSubscription = this.props.navigation.addListener(
-      'didBlur',
+      'blur',
       this._onBlur,
     );
   }
@@ -390,20 +395,23 @@ class Home extends Component {
         .then(res => {
           let status = true;
           res[0].status === 'off' ? (status = false) : (status = true);
-          this.setState(
-            {
-              status: status,
-              changingStatus: false,
-            },
-            () => {
-              if (this.state.status) {
-                this._startGeolocationService();
-              } else {
-                this._stopGeolocationService();
-              }
-              AsyncStorage.setItem('status', JSON.stringify(this.state.status));
-            },
-          );
+          if(this.socket.id) {
+            this._sendSocketId()
+            this.setState(
+              {
+                status: status,
+                changingStatus: false,
+              },
+              () => {
+                if (this.state.status) {
+                  this._startGeolocationService();
+                } else {
+                  this._stopGeolocationService();
+                }
+                AsyncStorage.setItem('status', JSON.stringify(this.state.status));
+              },
+            );
+          }
         })
         .then(() => this.removePendingPromise(wrappedPromise))
         .catch(error => {
@@ -763,11 +771,6 @@ class Home extends Component {
         status: 'off',
       }),
     })
-      .then(res => res.json())
-      .then(res => console.log(res))
-      .catch(err => {
-        console.log(err);
-      });
     AsyncStorage.setItem('status', JSON.stringify(false));
     BackHandler.exitApp();
   };
@@ -776,7 +779,6 @@ class Home extends Component {
     this.setState({
       doActivating: false,
     });
-    this.socket.disconnect();
     this.orderSound();
     Vibration.vibrate([1000, 1500, 2000], true);
     if (this.backHandler) {

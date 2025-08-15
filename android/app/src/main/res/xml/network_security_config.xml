@@ -1,0 +1,4 @@
+<network-security-config>
+    <!-- Allow all cleartext (HTTP) traffic -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

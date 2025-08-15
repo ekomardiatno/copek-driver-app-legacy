@@ -210,7 +210,6 @@ class Login extends Component {
     this.appendPendingPromise(wrappedPromise);
     wrappedPromise.promise
       .then(res => {
-        console.log(res)
         if (res.status === 'OK') {
           AsyncStorage.setItem(
             'user_logged_in',
@@ -273,7 +272,6 @@ class Login extends Component {
 
   _promiseLogin = data => {
     return new Promise((resolve, reject) => {
-      console.log(`${REST_API_URL}driver/login`, data)
       fetch(`${REST_API_URL}driver/login`, {
         method: 'POST',
         headers: {

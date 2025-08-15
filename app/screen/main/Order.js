@@ -31,7 +31,7 @@ export default class Order extends Component {
   componentDidMount() {
     this._getCheckOrderStatus();
     this.didFocusListener = this.props.navigation.addListener(
-      'didFocus',
+      'focus',
       () => {
         this._getCheckOrderStatus();
       },
