@@ -9,6 +9,7 @@ import ChatScreen from './app/screen/Chat';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
 import Color from './app/tools/Color';
+import SocketProvider from './app/components/SocketProvider';
 
 const Stack = createNativeStackNavigator();
 
@@ -27,38 +28,43 @@ const StackNavigator = () => {
 
 export default function App(): JSX.Element {
   return (
-    <NavigationContainer
-      theme={{
-        colors: {
-          background: Color.white,
-          border: Color.borderColor,
-          card: Color.grayLighter,
-          notification: Color.secondary,
-          primary: Color.primary,
-          text: Color.textColor,
-        },
-        dark: false,
-        fonts: {
-          bold: {
-            fontFamily: 'Archivo_bold',
-            fontWeight: '700',
-          },
-          medium: {
-            fontFamily: 'Archivo_bold',
-            fontWeight: '600',
-          },
-          heavy: {
-            fontFamily: 'Archivo_bold',
-            fontWeight: '800',
-          },
-          regular: {
-            fontFamily: 'Archivo',
-            fontWeight: '400',
-          },
-        },
-      }}
-    >
-      <StackNavigator />
-    </NavigationContainer>
+    <SocketProvider>
+      {handleStateChange => (
+        <NavigationContainer
+          onStateChange={handleStateChange}
+          theme={{
+            colors: {
+              background: Color.white,
+              border: Color.borderColor,
+              card: Color.grayLighter,
+              notification: Color.secondary,
+              primary: Color.primary,
+              text: Color.textColor,
+            },
+            dark: false,
+            fonts: {
+              bold: {
+                fontFamily: 'Archivo_bold',
+                fontWeight: '700',
+              },
+              medium: {
+                fontFamily: 'Archivo_bold',
+                fontWeight: '600',
+              },
+              heavy: {
+                fontFamily: 'Archivo_bold',
+                fontWeight: '800',
+              },
+              regular: {
+                fontFamily: 'Archivo',
+                fontWeight: '400',
+              },
+            },
+          }}
+        >
+          <StackNavigator />
+        </NavigationContainer>
+      )}
+    </SocketProvider>
   );
 }

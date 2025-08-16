@@ -16,13 +16,13 @@ export default class SliderButton extends Component {
 
   componentDidUpdate() {
     if(this.props.status === 'ready')  {
-      this.scrollRef.current.scrollTo({
+      this.scrollRef.current?.scrollTo({
         x: width - 30,
         y: 0,
         animated: true
       })
     } else {
-      this.scrollRef.current.scrollTo({
+      this.scrollRef.current?.scrollTo({
         x: 0,
         y: 0,
         animated: true
@@ -35,7 +35,7 @@ export default class SliderButton extends Component {
     if (offsetX <= (width - 30) / 2) {
       this.props.onTrigger && this.props.onTrigger()
     } else {
-      this.scrollRef.current.scrollTo({
+      this.scrollRef.current?.scrollTo({
         x: width - 30,
         y: 0,
         animated: true
@@ -45,7 +45,7 @@ export default class SliderButton extends Component {
 
   _onLayout = () => {
     setTimeout(function () {
-      this.scrollRef.current.scrollTo({
+      this.scrollRef.current?.scrollTo({
         x: width - 30,
         y: 0,
         animated: true

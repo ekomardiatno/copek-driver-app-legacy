@@ -12,21 +12,21 @@ import {
   StatusBar,
   ToastAndroid,
   ActivityIndicator,
-  ScrollView,
+  ScrollView
 } from 'react-native';
 import Color from '../../tools/Color';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { APP_HOST, EXPRESS_URL, REST_API_URL } from '../../tools/Define';
+import { EXPRESS_URL, REST_API_URL } from '../../tools/Define';
 import KeepAwake from 'react-native-keep-awake';
-import io from 'socket.io-client';
 import PushNotification from 'react-native-push-notification';
 import cancellablePromise from '../../tools/cancellablePromise';
-import Fa from '@react-native-vector-icons/fontawesome5';
-import BackgroundTimer from 'react-native-background-timer';
 import Geolocation from '@react-native-community/geolocation';
 import SoundPlayer from 'react-native-sound-player';
+import { SocketContext } from '../../components/SocketProvider';
+import { withSafeAreaInsets } from 'react-native-safe-area-context';
 
 class Home extends Component {
+  static contextType = SocketContext; // 👈 attach context
   timerConnecting;
   watchId;
   appState;
@@ -39,11 +39,11 @@ class Home extends Component {
     SoundPlayer.playSoundFile('samsung_s1', 'mp3');
     return SoundPlayer.getInfo();
   };
+
   constructor(props) {
     super(props);
     this.state = {
       status: false,
-      newMessageCount: 0,
       nextAppState: AppState.currentState,
       tracking: {
         latitude: 0,
@@ -53,76 +53,11 @@ class Home extends Component {
       driver: null,
       ready: false,
       changingStatus: false,
-      readyConnect: false,
       timeActive: 0,
-      statusSocketConnection: 'disconnect',
+      statusSocketConnection: 'disconnected',
       isKeepAwake: false,
-      doActivating: false,
     };
-
-    let socket = io(`${APP_HOST}`, {
-      path: '/copek-node/socket.io',
-      transports: ['websocket'],
-    });
-    this.socket = socket;
-    this.socket.on(
-      'disconnect',
-      function () {
-        this.setState(
-          {
-            status: false,
-            statusSocketConnection: 'disconnect',
-            doActivating: false,
-          },
-          () => {
-            AsyncStorage.setItem(
-              'status',
-              JSON.stringify(this.state.status),
-              () => {
-                this._stopGeolocationService();
-              },
-            );
-          },
-        );
-      }.bind(this),
-    );
-    this.socket.on(
-      'connect',
-      function () {
-        console.log('socket is connected', this.socket.id);
-        if (this.state.driver !== null) {
-          this._checkStatus();
-        }
-        this.setState({
-          statusSocketConnection: 'connect',
-          receiverId: this.socket.id,
-        });
-      }.bind(this),
-    );
   }
-
-  _sendSocketId = () => {
-    return new Promise((resolve, reject) => {
-      AsyncStorage.getItem('user_logged_in', (_err, user) => {
-        if (user !== null) {
-          user = JSON.parse(user);
-          fetch(`${EXPRESS_URL}drivers/${user.driverId}/socket`, {
-            method: 'PATCH',
-            headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              socketId: this.socket.id,
-            }),
-          })
-            .then(res => res.json())
-            .then(resolve)
-            .catch(reject);
-        }
-      });
-    });
-  };
 
   pendingPromises = [];
 
@@ -137,10 +72,69 @@ class Home extends Component {
   didBlurSubscription = null;
   didFocusSubscription = null;
 
+  _handleReceiveOrder = data => {
+    this.setState({
+      status: false,
+      isKeepAwake: false,
+    });
+    this._changeStatusOnMongo(false);
+    this._toBooking(data);
+  };
+
+  _handleReceiveOrderCancelled = statusCancel => {
+    if (this.state.nextAppState === 'active') {
+      Alert.alert(
+        'Dibatalkan',
+        statusCancel === 'by_user'
+          ? 'Pemesan membatalkan pesanannya'
+          : 'Anda melewatkan pesanan',
+      );
+    } else {
+      PushNotification.cancelAllLocalNotifications();
+      PushNotification.localNotification({
+        title: 'Dibatalkan',
+        message:
+          statusCancel === 'by_user'
+            ? 'Pemesan membatalkan pesanannya'
+            : 'Anda melewatkan pesanan',
+        importance: 'high',
+        priority: 'high',
+      });
+    }
+  };
+
   componentDidMount() {
     StatusBar.setBackgroundColor(Color.grayLighter, true);
     StatusBar.setBarStyle('dark-content', true);
     StatusBar.setTranslucent(false);
+
+    if (!this.backHandler) {
+      this.backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        this._handleBackPress,
+      );
+    }
+
+    const { socket } = this.context;
+    if (!socket.connected) {
+      this._changeStatusOnMongo(false);
+      this.setState(
+        {
+          status: false,
+          statusSocketConnection: 'disconnected',
+        },
+        () => {
+          AsyncStorage.setItem('status', JSON.stringify(this.state.status));
+        },
+      );
+    } else {
+      this._checkStatus();
+      this.setState({
+        statusSocketConnection: 'connected',
+        receiverId: socket.id,
+      });
+    }
+
     AsyncStorage.getItem('user_logged_in', (_err, user) => {
       if (user !== null) {
         user = JSON.parse(user);
@@ -151,74 +145,19 @@ class Home extends Component {
           },
           () => {
             this._fetchGetDriver();
-            this.socket.on(
+            this._startGeolocationService();
+            socket?.on(
               user.driverId + '_receive_order',
-              function (data) {
-                this.setState({
-                  status: false
-                })
-                this._changeStatusOnMongo(false)
-                this._toBooking(data);
-              }.bind(this),
+              this._handleReceiveOrder,
             );
-            this.socket.on(
+            socket?.on(
               user.driverId + '_receive_order_cancellation',
-              function (statusCancel) {
-                if (this.state.nextAppState === 'active') {
-                  Alert.alert(
-                    'Dibatalkan',
-                    statusCancel === 'by_user'
-                      ? 'Pemesan membatalkan pesanannya'
-                      : 'Anda melewatkan pesanan',
-                  );
-                } else {
-                  PushNotification.cancelAllLocalNotifications();
-                  PushNotification.localNotification({
-                    title: 'Dibatalkan',
-                    message:
-                      statusCancel === 'by_user'
-                        ? 'Pemesan membatalkan pesanannya'
-                        : 'Anda melewatkan pesanan',
-                    importance: 'high',
-                    priority: 'high',
-                  });
-                }
-              }.bind(this),
+              this._handleReceiveOrderCancelled,
             );
           },
         );
       }
     });
-    BackgroundTimer.runBackgroundTimer(() => {
-      this.setState(
-        {
-          timeActive: this.state.timeActive + 1,
-        },
-        () => {
-          const wrappedPromise = cancellablePromise(
-            this._promiseCheckOrderStatus(),
-          );
-          this.appendPendingPromise(wrappedPromise);
-          wrappedPromise.promise
-            .then(res => {
-              if (
-                this.state.doActivating === true &&
-                res.length <= 0 &&
-                this.state.statusSocketConnection === 'disconnect'
-              ) {
-                this.socket.connect();
-                if (this.state.status === false) {
-                  this._changeStatus();
-                  console.log('aktifkan status');
-                }
-                console.log('aktifkan socket');
-              }
-            })
-            .then(() => this.removePendingPromise(wrappedPromise))
-            .catch(err => console.log(err));
-        },
-      );
-    }, 1000);
 
     this.appState = AppState.addEventListener(
       'change',
@@ -235,9 +174,6 @@ class Home extends Component {
   }
 
   _fetchGetDriver = () => {
-    this.setState({
-      readyConnect: false,
-    });
     const wrappedPromise = cancellablePromise(this._promiseGetDriver());
     this.appendPendingPromise(wrappedPromise);
     wrappedPromise.promise
@@ -258,36 +194,10 @@ class Home extends Component {
               if (!error) {
                 this.setState({
                   driver: driver,
-                  driverReady: true,
-                  readyConnect: true,
                 });
               }
             },
           );
-          const receiverId = driver.driverId;
-          Geolocation.getCurrentPosition(position => {
-            const coords = position.coords;
-            const { latitude, longitude } = this.state.tracking;
-            if (
-              latitude !== coords.latitude &&
-              longitude !== coords.longitude
-            ) {
-              this.setState({
-                tracking: {
-                  latitude: coords.latitude,
-                  longitude: coords.longitude,
-                },
-              });
-              const wrappedPromise = cancellablePromise(
-                this._sendLocation(receiverId, coords),
-              );
-              this.appendPendingPromise(wrappedPromise);
-              wrappedPromise.promise
-                .then(res => console.log(res))
-                .then(() => this.removePendingPromise(wrappedPromise))
-                .catch(err => console.log('error kamvret', err));
-            }
-          });
         } else {
           AsyncStorage.removeItem('user_logged_in', error => {
             if (!error) {
@@ -301,9 +211,6 @@ class Home extends Component {
         this.removePendingPromise(wrappedPromise);
       })
       .catch(_err => {
-        this.setState({
-          readyConnect: true,
-        });
         Alert.alert(
           'Koneksi gagal',
           'Terjadi kesalahan pada sistem, pastikan Anda telah menggunakan aplikasi terbaru dan coba lagi nanti',
@@ -317,9 +224,9 @@ class Home extends Component {
       });
   };
 
-  _sendLocation = (receiverId, location) => {
+  _sendLocation = (driverId, location) => {
     return new Promise((resolve, reject) => {
-      fetch(`${EXPRESS_URL}drivers/${receiverId}/location`, {
+      fetch(`${EXPRESS_URL}drivers/${driverId}/location`, {
         method: 'PATCH',
         headers: {
           Accept: 'application/json',
@@ -352,18 +259,25 @@ class Home extends Component {
   };
 
   componentWillUnmount() {
-    BackgroundTimer.stopBackgroundTimer();
     if (this.backHandler) {
       this.backHandler.remove();
     }
     if (this.appState) this.appState.remove();
-    this.socket.disconnect();
     if (this.didBlurSubscription) {
       this.didBlurSubscription();
     }
     if (this.didFocusSubscription) {
       this.didFocusSubscription();
     }
+    this._stopGeolocationService();
+
+    const { socket } = this.context;
+    const { driver } = this.state;
+    socket?.off(driver.driverId + '_receive_order', this._handleReceiveOrder);
+    socket?.off(
+      driver.driverId + '_receive_order_cancellation',
+      this._handleReceiveOrderCancelled,
+    );
 
     this.pendingPromises.map(p => {
       this.removePendingPromise(p);
@@ -385,48 +299,54 @@ class Home extends Component {
 
   _stopSoundVibrate = () => {
     Vibration.cancel();
+    SoundPlayer.stop();
   };
 
   _checkStatus = () => {
+    const { socket } = this.context;
     if (!this.state.changingStatus) {
       const wrappedPromise = cancellablePromise(this._promiseCheckStatus());
       this.appendPendingPromise(wrappedPromise);
       wrappedPromise.promise
         .then(res => {
-          let status = true;
-          res[0].status === 'off' ? (status = false) : (status = true);
-          if(this.socket.id) {
-            this._sendSocketId()
+          if (socket.id) {
             this.setState(
               {
-                status: status,
+                status: res[0].status === 'off' ? false : true,
                 changingStatus: false,
               },
               () => {
-                if (this.state.status) {
-                  this._startGeolocationService();
-                } else {
-                  this._stopGeolocationService();
-                }
-                AsyncStorage.setItem('status', JSON.stringify(this.state.status));
+                AsyncStorage.setItem(
+                  'status',
+                  JSON.stringify(this.state.status),
+                );
               },
             );
           }
         })
         .then(() => this.removePendingPromise(wrappedPromise))
-        .catch(error => {
-          console.log('error', error);
+        .catch(() => {
+          this.setState({
+            status: false,
+            changingStatus: false,
+          });
         });
     }
   };
 
   _promiseCheckStatus = () => {
     return new Promise((resolve, reject) => {
-      const { driver } = this.state;
-      fetch(`${EXPRESS_URL}drivers/${driver.driverId}`)
-        .then(res => res.json())
-        .then(resolve)
-        .catch(reject);
+      AsyncStorage.getItem('user_logged_in').then(v => {
+        const driver = v ? JSON.parse(v) : null;
+        if (driver) {
+          fetch(`${EXPRESS_URL}drivers/${driver.driverId}`)
+            .then(res => res.json())
+            .then(resolve)
+            .catch(reject);
+        } else {
+          reject('Driver not found');
+        }
+      });
     });
   };
 
@@ -436,23 +356,22 @@ class Home extends Component {
         changingStatus: true,
       },
       () => {
-        let status = this.state.status ? false : true;
+        let newStatus = this.state.status ? false : true;
 
-        if (status === true) {
-          this._checkAndChangingOrderStatus(status);
+        if (newStatus === true) {
+          this._checkAndChangingOrderStatus(newStatus);
         } else {
           this._changeStatusOnMongo(false);
           this.setState(
             {
-              status: status,
+              status: newStatus,
               isKeepAwake: false,
             },
             () => {
               this.setState({
                 changingStatus: false,
               });
-              AsyncStorage.setItem('status', JSON.stringify(status));
-              this._stopGeolocationService();
+              AsyncStorage.setItem('status', JSON.stringify(newStatus));
             },
           );
         }
@@ -500,7 +419,6 @@ class Home extends Component {
       .catch(_err => {
         this.setState({
           changingStatus: false,
-          doActivating: false
         });
         Alert.alert(
           'Gagal membuat pesanan',
@@ -518,11 +436,10 @@ class Home extends Component {
       .then(() => {
         this.removePendingPromise(wrappedPromise2);
       })
-      .catch(() => {
+      .catch(e => {
         this.setState({
           changingStatus: false,
           status: !status,
-          doActivating: false
         });
         Alert.alert(
           'Koneksi gagal',
@@ -535,22 +452,16 @@ class Home extends Component {
     AsyncStorage.getItem(
       'orders',
       function (_err, orders) {
-        let length = 0,
-          array = [];
-        if (orders !== null) {
-          orders = JSON.parse(orders);
-          for (let i = 0; i < orders.length; i++) {
-            if (
-              orders[i].status !== 'completed' &&
-              orders[i].status !== 'cancelled_by_user' &&
-              orders[i].status !== 'cancelled_by_driver'
-            ) {
-              array.push(orders[i]);
-            }
-          }
-          length = array.length;
-        }
-        if (length > 0) {
+        const outstandingOrders = !orders
+          ? []
+          : JSON.parse(orders).filter(item => {
+              return ![
+                'completed',
+                'cancelled_by_user',
+                'cancelled_by_driver',
+              ].includes(item.status);
+            });
+        if (outstandingOrders.length > 0) {
           this.setState(
             {
               changingStatus: false,
@@ -563,14 +474,11 @@ class Home extends Component {
             },
           );
         } else {
-          if (this.state.statusSocketConnection === 'disconnect') {
-            this.socket.connect();
-          }
           const wrappedPromise = cancellablePromise(this._fetchSaldo());
           this.appendPendingPromise(wrappedPromise);
           wrappedPromise.promise
             .then(res => {
-              if (parseInt(res.driverSaldo) >= 10000) {
+              if (Number(res.driverSaldo) >= 10000) {
                 this.sound();
                 Vibration.vibrate(50);
                 this._changeStatusOnMongo(status);
@@ -579,23 +487,10 @@ class Home extends Component {
                     status: status,
                   },
                   () => {
-                    this.setState(
-                      {
-                        changingStatus: false,
-                      },
-                      () => {
-                        const wrappedPromise = cancellablePromise(
-                          this._sendSocketId(),
-                        );
-                        this.appendPendingPromise(wrappedPromise);
-                        wrappedPromise.promise
-                          .then(res => console.log(res))
-                          .then(() => this.removePendingPromise(wrappedPromise))
-                          .catch(err => console.log(err));
-                      },
-                    );
+                    this.setState({
+                      changingStatus: false,
+                    });
                     AsyncStorage.setItem('status', JSON.stringify(status));
-                    this._startGeolocationService();
                   },
                 );
               } else {
@@ -614,7 +509,6 @@ class Home extends Component {
             .catch(_err => {
               this.setState({
                 changingStatus: false,
-                doActivating: false,
               });
               Alert.alert(
                 'Gagal mengubah status',
@@ -667,27 +561,33 @@ class Home extends Component {
   };
 
   _promiseStatusMongoDb = status => {
-    let { driver } = this.state;
     status = status ? 'on' : 'off';
     return new Promise((resolve, reject) => {
-      fetch(`${EXPRESS_URL}drivers/${driver.driverId}`, {
-        method: 'PATCH',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: status,
-          driverName: driver.driverName,
-          driverVRP: driver.driverVRP,
-          driverPhone: driver.driverPhone,
-          driverEmail: driver.driverEmail,
-          driverPicture: driver.driverPicture,
-        }),
-      })
-        .then(res => res.json())
-        .then(resolve)
-        .catch(reject);
+      AsyncStorage.getItem('user_logged_in').then(v => {
+        const driver = v ? JSON.parse(v) : null;
+        if (driver) {
+          fetch(`${EXPRESS_URL}drivers/${driver.driverId}`, {
+            method: 'PATCH',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              status: status,
+              driverName: driver.driverName,
+              driverVRP: driver.driverVRP,
+              driverPhone: driver.driverPhone,
+              driverEmail: driver.driverEmail,
+              driverPicture: driver.driverPicture,
+            }),
+          })
+            .then(res => res.json())
+            .then(resolve)
+            .catch(reject);
+        } else {
+          reject('Driver not found');
+        }
+      });
     });
   };
 
@@ -718,15 +618,13 @@ class Home extends Component {
             longitude: coords.longitude,
           },
         });
-        if (!this.state.receiverId) return;
+        if (!this.state.driver) return;
         const wrappedPromise = cancellablePromise(
-          this._sendLocation(this.state.receiverId, coords),
+          this._sendLocation(this.state.driver.driverId, coords),
         );
         this.appendPendingPromise(wrappedPromise);
         wrappedPromise.promise
-          .then(res => console.log(res))
           .then(() => this.removePendingPromise(wrappedPromise))
-          .catch(err => console.log('error kamvret', err));
       }
     });
   };
@@ -738,19 +636,15 @@ class Home extends Component {
   };
 
   _handleAppStateChange = nextAppState => {
-    this.setState({ nextAppState }, () => {
-      if (this.nextAppState === 'background') {
-        this.socket.connect();
-      }
-    });
+    this.setState({ nextAppState });
   };
 
   _handleBackPress = () => {
     if (this.state.status) {
       Alert.alert(
-        '',
-        'Status masih aktif, yakin ingin keluar dari aplikasi?',
-        [{ text: 'Batal' }, { text: 'Ya', onPress: this._keluar }],
+        'Status masih aktif',
+        'Keluar dari aplikasi akan menonaktifkan status',
+        [{ text: 'Batal' }, { text: 'OK', onPress: this._keluar }],
         {
           cancelable: true,
         },
@@ -759,9 +653,9 @@ class Home extends Component {
     }
   };
 
-  _keluar = () => {
+  _keluar = async () => {
     const { driver } = this.state;
-    fetch(`${EXPRESS_URL}drivers/${driver.driverId}/status`, {
+    await fetch(`${EXPRESS_URL}drivers/${driver.driverId}/status`, {
       method: 'PATCH',
       headers: {
         Accept: 'application/json',
@@ -770,21 +664,21 @@ class Home extends Component {
       body: JSON.stringify({
         status: 'off',
       }),
-    })
+    });
+    this.setState({
+      status: false,
+    });
     AsyncStorage.setItem('status', JSON.stringify(false));
     BackHandler.exitApp();
   };
 
   _toBooking = data => {
-    this.setState({
-      doActivating: false,
-    });
+    this._changeStatusOnMongo(false);
     this.orderSound();
     Vibration.vibrate([1000, 1500, 2000], true);
     if (this.backHandler) {
       this.backHandler.remove();
     }
-    this._stopGeolocationService();
     AsyncStorage.getItem('orders', (_err, res) => {
       if (res !== null) {
         res = JSON.parse(res);
@@ -802,12 +696,6 @@ class Home extends Component {
         StatusBar.setBarStyle('dark-content', true);
       },
       driver: this.state.driver,
-      socket: {
-        connect: () => {
-          this.socket.connect();
-        },
-        disconnect: () => this.socket.disconnect(),
-      },
     });
   };
 
@@ -819,7 +707,7 @@ class Home extends Component {
 
   render() {
     return (
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingTop: this.props.insets.top }}>
         {this.state.isKeepAwake && <KeepAwake />}
         <View style={{ flex: 1 }}>
           <ScrollView>
@@ -866,61 +754,6 @@ class Home extends Component {
                   pesanan sudah benar dan tidak ada kesalahan
                 </Text>
               </View>
-              {!this.state.driverReady &&
-                (this.state.readyConnect ? (
-                  <View
-                    style={{
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 15,
-                      marginBottom: 15,
-                    }}
-                  >
-                    <Fa
-                      iconStyle="solid"
-                      name="exclamation-circle"
-                      size={40}
-                      color={Color.red}
-                      style={{ marginBottom: 15 }}
-                    />
-                    <Text
-                      style={{
-                        textAlign: 'center',
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      Tidak bisa terhubung
-                    </Text>
-                  </View>
-                ) : (
-                  <View
-                    style={{
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 15,
-                      marginBottom: 15,
-                    }}
-                  >
-                    <View
-                      style={{
-                        marginBottom: 15,
-                        height: 40,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <ActivityIndicator size="large" color={Color.primary} />
-                    </View>
-                    <Text
-                      style={{
-                        textAlign: 'center',
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      Menghubungkan
-                    </Text>
-                  </View>
-                ))}
             </View>
           </ScrollView>
         </View>
@@ -987,7 +820,7 @@ class Home extends Component {
               paddingLeft: 10,
             }}
           >
-            {this.state.changingStatus || !this.state.driverReady ? (
+            {this.state.changingStatus ? (
               <View
                 style={{
                   width: 50,
@@ -1016,15 +849,11 @@ class Home extends Component {
             ) : (
               <TouchableNativeFeedback
                 onPress={() => {
-                  if (this.state.ready) {
-                    this.setState(
-                      {
-                        doActivating: this.state.doActivating ? false : true,
-                      },
-                      () => {
-                        this._changeStatus();
-                      },
-                    );
+                  if (
+                    this.state.ready &&
+                    this.state.statusSocketConnection === 'connected'
+                  ) {
+                    this._changeStatus();
                   }
                 }}
                 useForeground={true}
@@ -1038,6 +867,12 @@ class Home extends Component {
                     width: 50,
                     height: 28,
                     borderRadius: 14,
+                    opacity: !(
+                      this.state.ready &&
+                      this.state.statusSocketConnection === 'connected'
+                    )
+                      ? 0.6
+                      : 1,
                     backgroundColor: this.state.status
                       ? Color.green
                       : Color.gray,
@@ -1175,4 +1010,4 @@ class Home extends Component {
   }
 }
 
-export default Home;
+export default withSafeAreaInsets(Home);

@@ -1,5 +1,5 @@
 export default function Currency(val) {
-  val = typeof val == 'number' ? val.toFixed(0) : val
+  val = typeof val === 'number' ? val.toFixed(0) : val
   val = val.toString()
   var mod = val.length % 3,
       currency = val.substr(0, mod),

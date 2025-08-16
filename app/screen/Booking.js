@@ -27,7 +27,6 @@ import Card from '../components/Card';
 import Currency from '../tools/Currency';
 import SliderButton from '../components/SliderButton';
 import {
-  APP_HOST,
   EXPRESS_URL,
   GOOGLE_MAPS_API_KEY,
   LATITUDE_DELTA,
@@ -35,17 +34,18 @@ import {
   REST_API_URL,
 } from '../tools/Define';
 import Polyline from '@mapbox/polyline';
-import io from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import phoneNumFormat from '../helpers/phoneNumFormat';
 import cancellablePromise from '../tools/cancellablePromise';
 import Geolocation from '@react-native-community/geolocation';
 import SoundPlayer from 'react-native-sound-player';
 import { withSafeAreaInsets } from 'react-native-safe-area-context';
+import { SocketContext } from '../components/SocketProvider';
 const { width, height } = Dimensions.get('window');
 const Sound = require('react-native-sound');
 
 class Booking extends Component {
+  static contextType = SocketContext; // 👈 attach context
   timer;
   timeoutResponse;
   timerAcceptOrder;
@@ -83,23 +83,6 @@ class Booking extends Component {
       SoundPlayer.playSoundFile('iphone_notification', 'mp3');
       return SoundPlayer.getInfo();
     };
-
-    let data = this.props.route.params?.data;
-    if (data) {
-      if (
-        data.status !== 'completed' &&
-        data.status !== 'cancelled_by_driver' &&
-        data.status !== 'cancelled_by_user'
-      ) {
-        let socket = io(`${APP_HOST}`, {
-          path: '/copek-node/socket.io',
-          transports: ['websocket', 'polling'],
-        });
-        this.socket = socket;
-      } else {
-        this.socket = null;
-      }
-    }
   }
 
   pendingPromises = [];
@@ -112,19 +95,109 @@ class Booking extends Component {
     this.pendingPromises = this.pendingPromises.filter(p => p !== promise);
   };
 
+  _handleReceiveResponse = status => {
+    if (status) {
+      clearTimeout(this.timeoutResponse);
+      this.setState({
+        sliderButton: true,
+        responseSent: true,
+      });
+    }
+  };
+
+  _handleReceiveChat = chat => {
+    this.setState(
+      {
+        hasNewChats: true,
+        chats: [
+          ...this.state.chats,
+          {
+            ...chat,
+          },
+        ],
+        newChatLength: this.state.newChatLength + 1,
+      },
+      () => {
+        this.sound();
+        this._saveChatOnStorage({
+          orderId: chat.orderId,
+          sender: chat.sender,
+          text: chat.text,
+          dateTime: chat.dateTime,
+        });
+        Animated.timing(this.state.opacityBoxNotif, {
+          toValue: 1,
+          duration: 500,
+        }).start();
+        if (this.state.newChatLength > 0) {
+          clearTimeout(this.timer);
+          this.timer = setTimeout(
+            function () {
+              Animated.timing(this.state.opacityBoxNotif, {
+                toValue: 0,
+                duration: 500,
+              }).start();
+              setTimeout(
+                function () {
+                  this.setState({
+                    newChatLength: 0,
+                  });
+                }.bind(this),
+                500,
+              );
+            }.bind(this),
+            5000,
+          );
+        }
+      },
+    );
+  };
+
+  _handleReceiveOrderCancelled = statusCancel => {
+    const { data } = this.state;
+    if (this.timerAcceptOrder) {
+      clearTimeout(this.timerAcceptOrder);
+    }
+    AsyncStorage.getItem('orders', (_err, order) => {
+      if (order !== null) {
+        const newOrder = JSON.parse(order).map(item => {
+          if (item.orderId === data.orderId.toString()) {
+            return {
+              ...item,
+              status:
+                statusCancel === 'by_user'
+                  ? 'cancelled_by_user'
+                  : 'cancelled_by_driver',
+            };
+          }
+          return item;
+        });
+        AsyncStorage.setItem('orders', JSON.stringify(newOrder), () => {
+          if (this.props.route.params?.stopSoundVibrate) {
+            this.props.route.params?.stopSoundVibrate();
+          }
+          ToastAndroid.show('Pesanan dibatalkan', ToastAndroid.SHORT);
+          this.props.navigation.goBack();
+        });
+      }
+    });
+  };
+
   componentDidMount() {
     this.timerAcceptOrder = setTimeout(
       function () {
         AsyncStorage.getItem('orders', (_err, order) => {
           if (order !== null) {
-            order = JSON.parse(order);
-            let index = order
-              .map(item => {
-                return item.orderId;
-              })
-              .indexOf(this.state.data.orderId.toString());
-            order[index].status = 'cancelled_by_driver';
-            AsyncStorage.setItem('orders', JSON.stringify(order));
+            const newOrder = JSON.parse(order).map(item => {
+              if(item.orderId === this.state.data.orderId.toString()) {
+                return {
+                  ...item,
+                  status: 'cancelled_by_user'
+                }
+              }
+              return item
+            })
+            AsyncStorage.setItem('orders', JSON.stringify(newOrder));
           }
         });
         if (this.props.route.params?.stopSoundVibrate) {
@@ -135,6 +208,13 @@ class Booking extends Component {
       }.bind(this),
       10000,
     );
+
+    const { socket } = this.context;
+
+    if (this.props.route.params?.data.status !== 'finded') {
+      clearTimeout(this.timerAcceptOrder);
+    }
+
     this.appState = AppState.addEventListener(
       'change',
       this.__handleAppStateChange,
@@ -153,16 +233,14 @@ class Booking extends Component {
           const { driver, data } = this.state;
           Geolocation.watchPosition(location => {
             const { latitude, longitude } = location.coords;
-            if (this.socket !== null) {
-              this.socket.emit('send_coordinate', {
-                receiverId: data.customer.userId,
-                data: {
-                  latitude: latitude,
-                  longitude: longitude,
-                  from: 'background_geolocation',
-                },
-              });
-            }
+            socket?.emit('send_coordinate', {
+              receiverId: data.customer.userId,
+              data: {
+                latitude: latitude,
+                longitude: longitude,
+                from: 'background_geolocation',
+              },
+            });
           });
           this.timerConnect = setTimeout(
             function () {
@@ -172,124 +250,31 @@ class Booking extends Component {
             }.bind(this),
             5000,
           );
-          if (this.socket !== null) {
-            this.socket.on(
+          if (socket) {
+            if (socket.connected) {
+              clearTimeout(this.timerConnect);
+              this._getChats();
+              this._getOrderStatus();
+              this.setState({
+                isConnected: true,
+                readyConnect: true,
+              });
+            } else {
+              this.setState({
+                isConnected: false,
+              });
+            }
+            socket.on(
               `${driver.driverId}_receive_response`,
-              function (status) {
-                if (status) {
-                  clearTimeout(this.timeoutResponse);
-                  this.setState({
-                    sliderButton: true,
-                    responseSent: true,
-                  });
-                }
-              }.bind(this),
+              this._handleReceiveResponse,
             );
-            this.socket.on(
-              'connect',
-              function () {
-                clearTimeout(this.timerConnect);
-                this._getChats();
-                this._getOrderStatus();
-                this.setState({
-                  isConnected: true,
-                  readyConnect: true,
-                });
-              }.bind(this),
-            );
-            this.socket.on(
-              'disconnect',
-              function () {
-                this.setState({
-                  isConnected: false,
-                });
-              }.bind(this),
-            );
-            this.socket.on(
+            socket.on(
               `${driver.driverId}_receive_chat`,
-              function (chat) {
-                this.setState(
-                  {
-                    hasNewChats: true,
-                    chats: [
-                      ...this.state.chats,
-                      {
-                        ...chat,
-                      },
-                    ],
-                    newChatLength: this.state.newChatLength + 1,
-                  },
-                  () => {
-                    this.sound();
-                    this._saveChatOnStorage({
-                      orderId: chat.orderId,
-                      sender: chat.sender,
-                      text: chat.text,
-                      dateTime: chat.dateTime,
-                    });
-                    Animated.timing(this.state.opacityBoxNotif, {
-                      toValue: 1,
-                      duration: 500,
-                    }).start();
-                    if (this.state.newChatLength > 0) {
-                      clearTimeout(this.timer);
-                      this.timer = setTimeout(
-                        function () {
-                          Animated.timing(this.state.opacityBoxNotif, {
-                            toValue: 0,
-                            duration: 500,
-                          }).start();
-                          setTimeout(
-                            function () {
-                              this.setState({
-                                newChatLength: 0,
-                              });
-                            }.bind(this),
-                            500,
-                          );
-                        }.bind(this),
-                        5000,
-                      );
-                    }
-                  },
-                );
-              }.bind(this),
+              this._handleReceiveChat,
             );
-            this.socket.on(
+            socket.on(
               driver.driverId + '_receive_order_cancellation',
-              function (statusCancel) {
-                AsyncStorage.getItem('orders', (_err, order) => {
-                  if (order !== null) {
-                    order = JSON.parse(order);
-                    let index = order
-                      .map(item => {
-                        return item.orderId;
-                      })
-                      .indexOf(data.orderId.toString());
-                    order[index].status =
-                      statusCancel === 'by_user'
-                        ? 'cancelled_by_user'
-                        : 'cancelled_by_driver';
-                    AsyncStorage.setItem(
-                      'orders',
-                      JSON.stringify(order),
-                      () => {
-                        if (this.props.route.params?.stopSoundVibrate) {
-                          this.props.route.params?.stopSoundVibrate();
-                        }
-                        if (statusCancel === 'by_time') {
-                        } else {
-                          ToastAndroid.show(
-                            'Pesanan dibatalkan',
-                            ToastAndroid.SHORT,
-                          );
-                        }
-                        this.props.navigation.goBack();
-                      },
-                    );
-                  }
-                });
-              }.bind(this),
+              this._handleReceiveOrderCancelled,
             );
           }
         },
@@ -303,19 +288,18 @@ class Booking extends Component {
     if (this.props.route.params?.action) {
       this.props.route.params?.action();
     }
-    if (this.socket !== null) {
-      this.socket.disconnect();
-    }
-    const data = this.state.data;
-    if (
-      data.status === 'completed' ||
-      data.status === 'cancelled_by_driver' ||
-      data.status === 'cancelled_by_user'
-    ) {
-      if (this.props.route.params?.socket) {
-        this.props.route.params?.socket.connect();
-      }
-    }
+    clearTimeout(this.timerAcceptOrder);
+    const { socket } = this.context;
+    const { driver } = this.state;
+    socket?.off(
+      `${driver.driverId}_receive_response`,
+      this._handleReceiveResponse,
+    );
+    socket?.off(`${driver.driverId}_receive_chat`, this._handleReceiveChat);
+    socket?.off(
+      driver.driverId + '_receive_order_cancellation',
+      this._handleReceiveOrderCancelled,
+    );
 
     this.pendingPromises.map(p => {
       this.removePendingPromise(p);
@@ -448,16 +432,22 @@ class Booking extends Component {
                 const { status } = this.state.data;
                 AsyncStorage.getItem('orders', (_err, order) => {
                   if (order !== null) {
-                    order = JSON.parse(order);
-                    let index = order
-                      .map(item => {
-                        return item.orderId;
-                      })
-                      .indexOf(orderId.toString());
-                    order[index].status = status;
-                    AsyncStorage.setItem(
-                      'orders',
-                      JSON.stringify(order),
+                    const jsonOrder = JSON.parse(order);
+                    const newOrder = jsonOrder.map(item => {
+                      if (item.orderId === orderId.toString()) {
+                        return {
+                          ...item,
+                          status:
+                            status === 'finded' && item.status === 'taken'
+                              ? 'taken'
+                              : status,
+                        };
+                      } else {
+                        return item;
+                      }
+                    });
+                    AsyncStorage.setItem('orders',
+                      JSON.stringify(newOrder),
                       () => {
                         this.setState({
                           sliderButton: true,
@@ -468,27 +458,6 @@ class Booking extends Component {
                 });
               },
             );
-          } else {
-            if (this.props.route.params?.fromOrderPage) {
-              AsyncStorage.getItem('orders', (_err, order) => {
-                if (order !== null) {
-                  order = JSON.parse(order);
-                  let index = order
-                    .map(item => {
-                      return item.orderId;
-                    })
-                    .indexOf(orderId.toString());
-                  order.splice(index, 1);
-                  AsyncStorage.setItem('orders', JSON.stringify(order), () => {
-                    if (this.props.route.params?.stopSoundVibrate) {
-                      this.props.route.params?.stopSoundVibrate();
-                    }
-                    ToastAndroid.show('Pesanan tidak sah', ToastAndroid.SHORT);
-                    this.props.navigation.goBack();
-                  });
-                }
-              });
-            }
           }
         })
         .catch(_err => {
@@ -531,16 +500,15 @@ class Booking extends Component {
 
   _userLocationChange = location => {
     const { customer, orderId } = this.state.data;
-    if (this.socket !== null) {
-      this.socket.emit('send_coordinate', {
-        receiverId: customer.userId,
-        data: {
-          latitude: location.nativeEvent.coordinate.latitude,
-          longitude: location.nativeEvent.coordinate.longitude,
-          from: 'maps',
-        },
-      });
-    }
+    const { socket } = this.context;
+    socket?.emit('send_coordinate', {
+      receiverId: customer.userId,
+      data: {
+        latitude: location.nativeEvent.coordinate.latitude,
+        longitude: location.nativeEvent.coordinate.longitude,
+        from: 'maps',
+      },
+    });
   };
 
   _mapReady = () => {
@@ -559,7 +527,7 @@ class Booking extends Component {
                 ? `Membelikan pesanan dari ${merchant.merchantName} ke ${destination.geocode.title}`
                 : `Mengantar penumpang dari ${origin.geocode.title} ke ${destination.geocode.title}`;
 
-          if (this.state.appState == 'background') {
+          if (this.state.appState === 'background') {
             this._sendNotification(titleNotif, descriptionNotif);
           }
         } else {
@@ -580,12 +548,28 @@ class Booking extends Component {
 
   _acceptOrder = () => {
     clearTimeout(this.timerAcceptOrder);
-    SoundPlayer.pause();
+    const { customer, orderId } = this.state.data;
+    AsyncStorage.getItem('orders', (_err, order) => {
+      if (order !== null) {
+        const jsonOrder = JSON.parse(order);
+        const newOrder = jsonOrder.map(item => {
+          if (item.orderId === orderId.toString()) {
+            return {
+              ...item,
+              status: 'taken',
+            };
+          } else {
+            return item;
+          }
+        });
+        AsyncStorage.setItem('orders', JSON.stringify(newOrder));
+      }
+    });
     if (this.props.route.params?.stopSoundVibrate) {
       this.props.route.params?.stopSoundVibrate();
     }
-    const { orderId, customer } = this.state.data;
-    this.socket.emit('send_response', {
+    const { socket } = this.context;
+    socket?.emit('send_response', {
       receiverId: customer.userId,
       data: 'ACCEPT',
     });
@@ -596,17 +580,16 @@ class Booking extends Component {
       () => {
         this.timeoutResponse = setTimeout(
           function () {
-            const { orderId } = this.state.data;
             AsyncStorage.getItem('orders', (_err, order) => {
               if (order !== null) {
-                order = JSON.parse(order);
-                let index = order
-                  .map(item => {
-                    return item.orderId;
-                  })
-                  .indexOf(orderId.toString());
-                order.splice(index, 1);
-                AsyncStorage.setItem('orders', JSON.stringify(order));
+                const newOrder = JSON.parse(order);
+                AsyncStorage.setItem('orders',
+                  JSON.stringify(
+                    newOrder.filter(
+                      item => item.orderId !== orderId.toString(),
+                    ),
+                  ),
+                );
                 this.props.navigation.goBack();
                 this.backHandler?.remove();
                 ToastAndroid.show(
@@ -628,19 +611,23 @@ class Booking extends Component {
     if (this.props.route.params?.stopSoundVibrate) {
       this.props.route.params?.stopSoundVibrate();
     }
+    const { socket } = this.context;
     const { orderId, customer } = this.state.data;
     AsyncStorage.getItem('orders', (_err, order) => {
       if (order !== null) {
-        order = JSON.parse(order);
-        let index = order
-          .map(item => {
-            return item.orderId;
-          })
-          .indexOf(orderId.toString());
-        order[index].status = 'cancelled_by_driver';
-        AsyncStorage.setItem('orders', JSON.stringify(order), () => {
+        const newOrder = JSON.parse(order).map(item => {
+          if(item.orderId === orderId.toString()) {
+            return {
+              ...item,
+              status: 'cancelled_by_driver'
+            }
+          } else {
+            return item
+          }
+        });
+        AsyncStorage.setItem('orders', JSON.stringify(newOrder), () => {
           this.props.navigation.goBack();
-          this.socket.emit('send_response', {
+          socket.emit('send_response', {
             receiverId: customer.userId,
             data: 'DECLINE',
           });
@@ -828,6 +815,7 @@ class Booking extends Component {
   };
 
   _changeStatusLocal = status => {
+    const { socket } = this.context;
     this.setState(
       {
         data: {
@@ -836,25 +824,28 @@ class Booking extends Component {
         },
       },
       () => {
-        const { customer, status, orderId } = this.state.data;
+        const { customer, orderId } = this.state.data;
         AsyncStorage.getItem('orders', (_err, order) => {
           if (order !== null) {
-            order = JSON.parse(order);
-            let index = order
-              .map(item => {
-                return item.orderId;
-              })
-              .indexOf(orderId.toString());
-            order[index].status = status;
-            AsyncStorage.setItem('orders', JSON.stringify(order));
+            const newOrder = JSON.parse(order).map(item => {
+              if (item.orderId === orderId.toString()) {
+                return {
+                  ...item,
+                  status:
+                    status === 'finded' && item.status === 'taken'
+                      ? 'taken'
+                      : status,
+                };
+              }
+              return item
+            });
+            AsyncStorage.setItem('orders', JSON.stringify(newOrder));
           }
         });
-        if (this.socket !== null) {
-          this.socket.emit('send_order_status', {
-            receiverId: customer.userId,
-            data: status,
-          });
-        }
+        socket?.emit('send_order_status', {
+          receiverId: customer.userId,
+          data: status,
+        });
       },
     );
   };
@@ -875,6 +866,7 @@ class Booking extends Component {
 
   render() {
     const { data } = this.state;
+    const { socket } = this.context;
 
     if (data !== null) {
       const {
@@ -1134,7 +1126,6 @@ class Booking extends Component {
                             pushChat: chats => {
                               this.setState({ chats });
                             },
-                            socket: this.socket,
                             receiverId: driver.driverId,
                             customer: customer,
                             orderId: orderId,
@@ -1836,7 +1827,7 @@ class Booking extends Component {
                 )}
               </View>
             </View>
-            {this.socket !== null &&
+            {socket !== null &&
               !this.state.isConnected &&
               (this.state.readyConnect ? (
                 <View

@@ -1,3 +1,4 @@
+/* eslint-disable react-native/no-inline-styles */
 import React, { Component } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import Header from '../../components/Header';
@@ -38,19 +39,15 @@ export default class Order extends Component {
     );
   }
 
-  _getData = () => {
-    AsyncStorage.getItem(
-      'orders',
-      function (err, orders) {
-        if (orders != null) {
-          orders = JSON.parse(orders);
-          orders.reverse();
+  _getData = async () => {
+    const getOrders = await AsyncStorage.getItem('orders')
+    if(getOrders) {
+      const orders = JSON.parse(getOrders)
+      orders.reverse();
           this.setState({
             orders,
           });
-        }
-      }.bind(this),
-    );
+    }
   };
 
   _getCheckOrderStatus = () => {
@@ -63,20 +60,19 @@ export default class Order extends Component {
       .then(res => {
         if (res.length > 0) {
           for (let i = 0; i < res.length; i++) {
-            AsyncStorage.getItem('orders', (err, order) => {
+            AsyncStorage.getItem('orders', (_err, order) => {
               if (order !== null) {
-                order = JSON.parse(order);
-                let index = order
-                  .map(item => {
-                    return item.orderId;
-                  })
-                  .indexOf(res[i].orderId.toString());
-                if (res[i].status !== null) {
-                  order[index].status = res[i].status;
-                } else {
-                  order.splice(index, 1);
-                }
-                AsyncStorage.setItem('orders', JSON.stringify(order), err => {
+                const newOrder = JSON.parse(order).map(item => {
+                  if(item.orderId === res[i].orderId.toString()) {
+                    return {
+                      ...item,
+                      status: item.status === 'taken' && res[i].status === 'finded' ? 'taken' : res[i].status
+                    }
+                  } else {
+                    return item
+                  }
+                })
+                AsyncStorage.setItem('orders', JSON.stringify(newOrder), _err => {
                   if (i + 1 >= res.length) {
                     this._getData();
                   }
@@ -89,7 +85,7 @@ export default class Order extends Component {
         }
       })
       .then(() => this.removePendingPromise(wrappedPromise))
-      .catch(err => {
+      .catch(_err => {
         this.setState({
           alert: false,
         });
@@ -148,7 +144,7 @@ export default class Order extends Component {
       data: order,
       driver: order.driver,
       fromOrderPage: true,
-      action: this._getData,
+      action: this._getCheckOrderStatus,
     });
   };
 

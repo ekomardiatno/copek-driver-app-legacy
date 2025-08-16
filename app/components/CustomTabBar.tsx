@@ -54,10 +54,10 @@ export default function CustomTabBar({
               name={
                 label === 'Home'
                   ? 'home'
-                  : label === 'History'
+                  : label === 'Order'
                   ? 'book'
-                  : label === 'Settings'
-                  ? 'cog'
+                  : label === 'Account'
+                  ? 'user'
                   : 'circle'
               }
               size={22}
