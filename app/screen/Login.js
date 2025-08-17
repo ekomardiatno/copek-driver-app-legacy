@@ -19,7 +19,6 @@ import cancellablePromise from '../tools/cancellablePromise.js';
 import { REST_API_URL, EXPRESS_URL } from '../tools/Define';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SocketContext } from '../components/SocketProvider';
-import KeyboardSafeView from '../components/KeyboardSafeView';
 import { withSafeAreaInsets } from 'react-native-safe-area-context';
 const { width, height } = Dimensions.get('window');
 
@@ -303,148 +302,152 @@ class Login extends Component {
       password,
     } = this.state;
     return render ? (
-      <KeyboardSafeView>
-        <View style={{ flex: 1, backgroundColor: '#fff', paddingBottom: this.props.insets.bottom }}>
-          <ScrollView>
-            <View
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: '#fff',
+          paddingBottom: this.props.insets.bottom,
+        }}
+      >
+        <ScrollView>
+          <View
+            style={{
+              backgroundColor: Color.primary,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingBottom: 50,
+              overflow: 'hidden',
+              height: (width / 4) * 3 + StatusBar.currentHeight,
+              marginBottom: 15,
+            }}
+          >
+            <Image
               style={{
-                backgroundColor: Color.primary,
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingBottom: 50,
-                overflow: 'hidden',
+                width: width,
                 height: (width / 4) * 3 + StatusBar.currentHeight,
-                marginBottom: 15,
+                position: 'absolute',
+                top: 0,
               }}
-            >
-              <Image
+              resizeMode="cover"
+              source={require('../images/city-map.jpg')}
+            />
+            <Image
+              style={{ width: 200, height: 200 }}
+              source={require('../images/copek.png')}
+            />
+            <Image
+              style={{
+                width: width,
+                height: (width / 699) * 195,
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+              }}
+              source={require('../images/separator-main.png')}
+            />
+          </View>
+          <View style={{ flex: 1, paddingHorizontal: 20 }}>
+            <View style={{ marginBottom: 15 }}>
+              <Text
                 style={{
-                  width: width,
-                  height: (width / 4) * 3 + StatusBar.currentHeight,
-                  position: 'absolute',
-                  top: 0,
+                  fontWeight: 'bold',
+                  fontSize: 18,
+                  marginBottom: 8,
+                  textAlign: 'center',
                 }}
-                resizeMode="cover"
-                source={require('../images/city-map.jpg')}
-              />
-              <Image
-                style={{ width: 200, height: 200 }}
-                source={require('../images/copek.png')}
-              />
-              <Image
-                style={{
-                  width: width,
-                  height: (width / 699) * 195,
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                }}
-                source={require('../images/separator-main.png')}
-              />
+              >
+                Selamat datang!
+              </Text>
+              <Text style={{ color: Color.gray, textAlign: 'center' }}>
+                Silakan masukan nomor HP dan password untuk masuk
+              </Text>
             </View>
-            <View style={{ flex: 1, paddingHorizontal: 20 }}>
-              <View style={{ marginBottom: 15 }}>
-                <Text
-                  style={{
-                    fontWeight: 'bold',
-                    fontSize: 18,
-                    marginBottom: 8,
-                    textAlign: 'center',
-                  }}
-                >
-                  Selamat datang!
-                </Text>
-                <Text style={{ color: Color.gray, textAlign: 'center' }}>
-                  Silakan masukan nomor HP dan password untuk masuk
+            {alertMsg && (
+              <View style={{ borderRadius: 10, marginHorizontal: 40 }}>
+                <Text style={{ textAlign: 'center', color: Color.red }}>
+                  {alertMsgText}
                 </Text>
               </View>
-              {alertMsg && (
-                <View style={{ borderRadius: 10, marginHorizontal: 40 }}>
-                  <Text style={{ textAlign: 'center', color: Color.red }}>
-                    {alertMsgText}
-                  </Text>
-                </View>
-              )}
-              <Input
-                keyboardType="number-pad"
-                autoCapitalize="none"
-                error={errorPhoneNumber ? true : false}
-                onChangeText={this._phoneNumberChangeText}
-                value={phoneNumber}
-                placeholder="81234567890"
-                style={{ marginBottom: 3, marginTop: 15 }}
-                appendLeftText="+62"
-                iconName="mobile-alt"
-              />
-              {errorPhoneNumber && (
-                <Text style={{ fontSize: 11, marginTop: 4, color: Color.red }}>
-                  {errorPhoneNumberMessage}
-                </Text>
-              )}
-              <Input
-                autoCapitalize="none"
-                error={errorPassword ? true : false}
-                onChangeText={this._passwordChangeText}
-                value={password}
-                password
-                secureTextEntry={this.state.isSecureText}
-                placeholder="••••••••"
-                style={{ marginBottom: 3, marginTop: 12 }}
-                iconName="key"
-                changeSecureText={() => {
-                  this.setState({
-                    isSecureText: this.state.isSecureText ? false : true,
-                  });
+            )}
+            <Input
+              keyboardType="number-pad"
+              autoCapitalize="none"
+              error={errorPhoneNumber ? true : false}
+              onChangeText={this._phoneNumberChangeText}
+              value={phoneNumber}
+              placeholder="81234567890"
+              style={{ marginBottom: 3, marginTop: 15 }}
+              appendLeftText="+62"
+              iconName="mobile-alt"
+            />
+            {errorPhoneNumber && (
+              <Text style={{ fontSize: 11, marginTop: 4, color: Color.red }}>
+                {errorPhoneNumberMessage}
+              </Text>
+            )}
+            <Input
+              autoCapitalize="none"
+              error={errorPassword ? true : false}
+              onChangeText={this._passwordChangeText}
+              value={password}
+              password
+              secureTextEntry={this.state.isSecureText}
+              placeholder="••••••••"
+              style={{ marginBottom: 3, marginTop: 12 }}
+              iconName="key"
+              changeSecureText={() => {
+                this.setState({
+                  isSecureText: this.state.isSecureText ? false : true,
+                });
+              }}
+            />
+            {errorPassword && (
+              <Text style={{ fontSize: 11, marginTop: 4, color: Color.red }}>
+                {errorPasswordMessage}
+              </Text>
+            )}
+            {isSigningIn ? (
+              <View
+                style={{
+                  height: 40,
+                  backgroundColor: Color.red,
+                  marginBottom: 15,
+                  marginTop: 27,
+                  elevation: 5,
+                  borderRadius: 4,
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
-              />
-              {errorPassword && (
-                <Text style={{ fontSize: 11, marginTop: 4, color: Color.red }}>
-                  {errorPasswordMessage}
-                </Text>
-              )}
-              {isSigningIn ? (
-                <View
-                  style={{
-                    height: 40,
-                    backgroundColor: Color.red,
-                    marginBottom: 15,
-                    marginTop: 27,
-                    elevation: 5,
-                    borderRadius: 4,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <ActivityIndicator size="small" color={colorYiq(Color.red)} />
-                </View>
-              ) : (
-                <Button
-                  onPress={this._login}
-                  style={{ marginBottom: 15, marginTop: 27 }}
-                  color={Color.red}
-                  title="Masuk"
-                />
-              )}
-            </View>
-            <View style={{ paddingHorizontal: 30, paddingVertical: 15 }}>
-              <TouchableOpacity
-                activeOpacity={1}
-                onPress={() => this.props.navigation.navigate('Forgot')}
               >
-                <View style={{ flexDirection: 'row' }}>
-                  <Text style={{ fontSize: 13, textAlign: 'center' }}>
-                    Lupa detail informasi masuk?{' '}
-                    <Text style={{ fontSize: 12, fontWeight: 'bold' }}>
-                      Dapatkan bantuan masuk.
-                    </Text>
+                <ActivityIndicator size="small" color={colorYiq(Color.red)} />
+              </View>
+            ) : (
+              <Button
+                onPress={this._login}
+                style={{ marginBottom: 15, marginTop: 27 }}
+                color={Color.red}
+                title="Masuk"
+              />
+            )}
+          </View>
+          <View style={{ paddingHorizontal: 30, paddingVertical: 15 }}>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => this.props.navigation.navigate('Forgot')}
+            >
+              <View style={{ flexDirection: 'row' }}>
+                <Text style={{ fontSize: 13, textAlign: 'center' }}>
+                  Lupa detail informasi masuk?{' '}
+                  <Text style={{ fontSize: 12, fontWeight: 'bold' }}>
+                    Dapatkan bantuan masuk.
                   </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </KeyboardSafeView>
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
     ) : null;
   }
 }

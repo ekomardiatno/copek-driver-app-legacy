@@ -19,7 +19,6 @@ import dateFormatted from '../helpers/dateFormatted';
 import SoundPlayer from 'react-native-sound-player';
 import { withSafeAreaInsets } from 'react-native-safe-area-context';
 import { SocketContext } from '../components/SocketProvider';
-import KeyboardSafeView from '../components/KeyboardSafeView';
 
 class Chat extends Component {
   static contextType = SocketContext; // 👈 attach context
@@ -227,20 +226,88 @@ class Chat extends Component {
   render() {
     let { chats, customer } = this.state;
     return (
-      <KeyboardSafeView>
-        <View style={{ flex: 1, paddingBottom: this.props.insets.bottom }}>
+      <View style={{ flex: 1, paddingBottom: this.props.insets.bottom }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: Color.primary,
+            elevation: 5,
+            paddingTop: this.props.insets.top,
+          }}
+        >
+          <View style={{ padding: 10, paddingVertical: 15, paddingLeft: 15 }}>
+            <TouchableNativeFeedback
+              onPress={() => this.props.navigation.goBack()}
+              useForeground={true}
+              background={TouchableNativeFeedback.Ripple(
+                'rgba(0,0,0,.25)',
+                false,
+              )}
+            >
+              <View
+                style={{
+                  width: 35,
+                  height: 35,
+                  borderRadius: 35 / 2,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: Color.primary,
+                  overflow: 'hidden',
+                }}
+              >
+                <Fa
+                  iconStyle="solid"
+                  color={Color.white}
+                  size={20}
+                  name="chevron-left"
+                />
+              </View>
+            </TouchableNativeFeedback>
+          </View>
           <View
             style={{
+              flex: 1,
               flexDirection: 'row',
               alignItems: 'center',
-              backgroundColor: Color.primary,
-              elevation: 5,
-              paddingTop: this.props.insets.top,
+              paddingVertical: 10,
             }}
           >
-            <View style={{ padding: 10, paddingVertical: 15, paddingLeft: 15 }}>
+            {/* <View style={{ width: 50, height: 50, borderRadius: 25, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', padding: 8, backgroundColor: Color.secondary }}>
+            </View> */}
+            <View style={{ paddingRight: 10 }}>
+              {customer !== null ? (
+                <View>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: Color.white,
+                      fontSize: 17,
+                      marginBottom: 3,
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    {customer.userName}
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  <View
+                    style={{
+                      height: 17,
+                      width: 120,
+                      backgroundColor: Color.textColor,
+                      marginBottom: 2,
+                    }}
+                  />
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', padding: 5, paddingRight: 15 }}>
+            <View style={{ marginHorizontal: 2.5 }}>
               <TouchableNativeFeedback
-                onPress={() => this.props.navigation.goBack()}
+                onPress={() => Linking.openURL(`tel://${customer.userPhone}`)}
                 useForeground={true}
                 background={TouchableNativeFeedback.Ripple(
                   'rgba(0,0,0,.25)',
@@ -249,221 +316,107 @@ class Chat extends Component {
               >
                 <View
                   style={{
-                    width: 35,
-                    height: 35,
-                    borderRadius: 35 / 2,
+                    width: 40,
+                    height: 40,
+                    borderRadius: 40 / 2,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: Color.primary,
+                    backgroundColor: Color.white,
                     overflow: 'hidden',
                   }}
                 >
                   <Fa
                     iconStyle="solid"
-                    color={Color.white}
-                    size={20}
-                    name="chevron-left"
+                    color={Color.secondary}
+                    size={18}
+                    name="phone"
                   />
                 </View>
               </TouchableNativeFeedback>
             </View>
+            <View style={{ marginHorizontal: 2.5 }}>
+              <TouchableNativeFeedback
+                onPress={() =>
+                  Linking.openURL(
+                    `whatsapp://send?phone=${phoneNumFormat(
+                      customer.userPhone,
+                    )}`,
+                  )
+                }
+                useForeground={true}
+                background={TouchableNativeFeedback.Ripple(
+                  'rgba(0,0,0,.25)',
+                  false,
+                )}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 40 / 2,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: Color.white,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Fa
+                    iconStyle="brand"
+                    color={Color.secondary}
+                    size={18}
+                    name="whatsapp"
+                  />
+                </View>
+              </TouchableNativeFeedback>
+            </View>
+          </View>
+        </View>
+        <View style={{ flex: 1, backgroundColor: Color.grayLighter }}>
+          {chats.length <= 0 ? (
             <View
               style={{
                 flex: 1,
-                flexDirection: 'row',
                 alignItems: 'center',
-                paddingVertical: 10,
+                justifyContent: 'center',
+                paddingHorizontal: 30,
               }}
             >
-              {/* <View style={{ width: 50, height: 50, borderRadius: 25, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', padding: 8, backgroundColor: Color.secondary }}>
-            </View> */}
-              <View style={{ paddingRight: 10 }}>
-                {customer !== null ? (
-                  <View>
-                    <Text
-                      numberOfLines={1}
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: 'bold',
+                  marginBottom: 8,
+                  color: Color.textMuted,
+                }}
+              >
+                Layanan chat (beta)
+              </Text>
+              <Text style={{ textAlign: 'center', color: Color.textMuted }}>
+                Lebih disarankan untuk menghubungi driver lewat WhatsApp atau
+                nomor telepon untuk komunikasi yang lebih baik
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              ref={ref => (this._scrollView = ref)}
+              onContentSizeChange={(contentWidth, contentHeight) => {
+                this._scrollView.scrollToEnd({ animated: true });
+              }}
+            >
+              {chats.map((chat, i) => {
+                if (chat.sender === 'customer') {
+                  return (
+                    <View
+                      key={i}
                       style={{
-                        color: Color.white,
-                        fontSize: 17,
-                        marginBottom: 3,
-                        fontWeight: 'bold',
+                        paddingHorizontal: 15,
+                        paddingVertical: 5,
+                        paddingRight: 50,
                       }}
                     >
-                      {customer.userName}
-                    </Text>
-                  </View>
-                ) : (
-                  <View>
-                    <View
-                      style={{
-                        height: 17,
-                        width: 120,
-                        backgroundColor: Color.textColor,
-                        marginBottom: 2,
-                      }}
-                    />
-                  </View>
-                )}
-              </View>
-            </View>
-            <View
-              style={{ flexDirection: 'row', padding: 5, paddingRight: 15 }}
-            >
-              <View style={{ marginHorizontal: 2.5 }}>
-                <TouchableNativeFeedback
-                  onPress={() => Linking.openURL(`tel://${customer.userPhone}`)}
-                  useForeground={true}
-                  background={TouchableNativeFeedback.Ripple(
-                    'rgba(0,0,0,.25)',
-                    false,
-                  )}
-                >
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 40 / 2,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: Color.white,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <Fa
-                      iconStyle="solid"
-                      color={Color.secondary}
-                      size={18}
-                      name="phone"
-                    />
-                  </View>
-                </TouchableNativeFeedback>
-              </View>
-              <View style={{ marginHorizontal: 2.5 }}>
-                <TouchableNativeFeedback
-                  onPress={() =>
-                    Linking.openURL(
-                      `whatsapp://send?phone=${phoneNumFormat(
-                        customer.userPhone,
-                      )}`,
-                    )
-                  }
-                  useForeground={true}
-                  background={TouchableNativeFeedback.Ripple(
-                    'rgba(0,0,0,.25)',
-                    false,
-                  )}
-                >
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 40 / 2,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: Color.white,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <Fa
-                      iconStyle="brand"
-                      color={Color.secondary}
-                      size={18}
-                      name="whatsapp"
-                    />
-                  </View>
-                </TouchableNativeFeedback>
-              </View>
-            </View>
-          </View>
-          <View style={{ flex: 1, backgroundColor: Color.grayLighter }}>
-            {chats.length <= 0 ? (
-              <View
-                style={{
-                  flex: 1,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  paddingHorizontal: 30,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 'bold',
-                    marginBottom: 8,
-                    color: Color.textMuted,
-                  }}
-                >
-                  Layanan chat (beta)
-                </Text>
-                <Text style={{ textAlign: 'center', color: Color.textMuted }}>
-                  Lebih disarankan untuk menghubungi driver lewat WhatsApp atau nomor telepon untuk komunikasi yang lebih baik
-                </Text>
-              </View>
-            ) : (
-              <ScrollView
-                ref={ref => (this._scrollView = ref)}
-                onContentSizeChange={(contentWidth, contentHeight) => {
-                  this._scrollView.scrollToEnd({ animated: true });
-                }}
-              >
-                {chats.map((chat, i) => {
-                  if (chat.sender === 'customer') {
-                    return (
                       <View
-                        key={i}
                         style={{
-                          paddingHorizontal: 15,
-                          paddingVertical: 5,
-                          paddingRight: 50,
-                        }}
-                      >
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            marginTop: i === 0 ? 10 : 0,
-                            marginBottom:
-                              chats[i + 1] === undefined
-                                ? i === chats.length - 1
-                                  ? 10
-                                  : 0
-                                : chat.sender !== chats[i + 1].sender
-                                ? 10
-                                : 0,
-                          }}
-                        >
-                          <View
-                            style={{
-                              paddingHorizontal: 12,
-                              paddingVertical: 6,
-                              backgroundColor: Color.grayLight,
-                              borderRadius: 15,
-                              elevation: 1,
-                            }}
-                          >
-                            <Text style={{ lineHeight: 16 }}>{chat.text}</Text>
-                            <Text
-                              style={{
-                                textAlign: 'right',
-                                marginLeft: 25,
-                                fontSize: 10,
-                                color: Color.textMuted,
-                              }}
-                            >
-                              {dateFormatted(chat.dateTime, true, true)}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  } else {
-                    return (
-                      <View
-                        key={i}
-                        style={{
-                          paddingHorizontal: 15,
-                          paddingVertical: 5,
-                          paddingLeft: 50,
-                          alignItems: 'flex-end',
+                          flexDirection: 'row',
                           marginTop: i === 0 ? 10 : 0,
                           marginBottom:
                             chats[i + 1] === undefined
@@ -475,102 +428,175 @@ class Chat extends Component {
                               : 0,
                         }}
                       >
-                        <View style={{ flexDirection: 'row' }}>
-                          <View
+                        <View
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            backgroundColor: Color.grayLight,
+                            borderRadius: 15,
+                            elevation: 1,
+                          }}
+                        >
+                          <Text style={{ lineHeight: 16 }}>{chat.text}</Text>
+                          <Text
                             style={{
-                              paddingHorizontal: 12,
-                              paddingVertical: 6,
-                              backgroundColor: Color.primary,
-                              borderRadius: 15,
-                              elevation: 1,
+                              textAlign: 'right',
+                              marginLeft: 25,
+                              fontSize: 10,
+                              color: Color.textMuted,
                             }}
                           >
-                            <Text
-                              style={{
-                                lineHeight: 16,
-                                color: colorYiq(Color.primary),
-                              }}
-                            >
-                              {chat.text}
-                            </Text>
-                            <Text
-                              style={{
-                                textAlign: 'right',
-                                marginLeft: 25,
-                                fontSize: 10,
-                                color: Color.white,
-                              }}
-                            >
-                              {dateFormatted(chat.dateTime, true, true)}
-                            </Text>
-                          </View>
+                            {dateFormatted(chat.dateTime, true, true)}
+                          </Text>
                         </View>
                       </View>
-                    );
-                  }
-                })}
-              </ScrollView>
-            )}
-          </View>
-          <View
-            style={{
-              paddingHorizontal: 15,
-              paddingVertical: 10,
-              flexDirection: 'row',
-              alignItems: 'flex-end',
-              backgroundColor: Color.grayLighter,
-            }}
-          >
-            {this.state.status === 'completed' ||
-            this.state.status === 'cancelled_by_driver' ||
-            this.state.status === 'cancelled_by_user' ? (
-              <View
-                style={{
-                  backgroundColor: Color.grayLight,
-                  height: 45,
-                  flex: 1,
-                  borderRadius: 45 / 2,
-                  elevation: 1,
-                  paddingHorizontal: 15,
-                  justifyContent: 'center',
-                }}
-              >
-                <Text style={{ color: Color.textMuted, fontSize: 14 }}>
-                  Sesi obrolan berakhir
-                </Text>
-              </View>
-            ) : (
-              <TextInput
-                multiline
-                value={this.state.chatText}
-                onChangeText={chatText => this.setState({ chatText })}
-                style={{
-                  flex: 1,
-                  color: Color.textColor,
-                  fontFamily: 'Archivo',
-                  fontSize: 14,
-                  backgroundColor: Color.white,
-                  paddingVertical: 6,
-                  paddingHorizontal: 15,
-                  minHeight: 45,
-                  maxHeight: 90,
-                  borderRadius: 45 / 2,
-                  elevation: 1,
-                }}
-                placeholderTextColor={Color.textHint}
-                placeholder="Masukkan pesan"
+                    </View>
+                  );
+                } else {
+                  return (
+                    <View
+                      key={i}
+                      style={{
+                        paddingHorizontal: 15,
+                        paddingVertical: 5,
+                        paddingLeft: 50,
+                        alignItems: 'flex-end',
+                        marginTop: i === 0 ? 10 : 0,
+                        marginBottom:
+                          chats[i + 1] === undefined
+                            ? i === chats.length - 1
+                              ? 10
+                              : 0
+                            : chat.sender !== chats[i + 1].sender
+                            ? 10
+                            : 0,
+                      }}
+                    >
+                      <View style={{ flexDirection: 'row' }}>
+                        <View
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            backgroundColor: Color.primary,
+                            borderRadius: 15,
+                            elevation: 1,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              lineHeight: 16,
+                              color: colorYiq(Color.primary),
+                            }}
+                          >
+                            {chat.text}
+                          </Text>
+                          <Text
+                            style={{
+                              textAlign: 'right',
+                              marginLeft: 25,
+                              fontSize: 10,
+                              color: Color.white,
+                            }}
+                          >
+                            {dateFormatted(chat.dateTime, true, true)}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                }
+              })}
+            </ScrollView>
+          )}
+        </View>
+        <View
+          style={{
+            paddingHorizontal: 15,
+            paddingVertical: 10,
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            backgroundColor: Color.grayLighter,
+          }}
+        >
+          {this.state.status === 'completed' ||
+          this.state.status === 'cancelled_by_driver' ||
+          this.state.status === 'cancelled_by_user' ? (
+            <View
+              style={{
+                backgroundColor: Color.grayLight,
+                height: 45,
+                flex: 1,
+                borderRadius: 45 / 2,
+                elevation: 1,
+                paddingHorizontal: 15,
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ color: Color.textMuted, fontSize: 14 }}>
+                Sesi obrolan berakhir
+              </Text>
+            </View>
+          ) : (
+            <TextInput
+              multiline
+              value={this.state.chatText}
+              onChangeText={chatText => this.setState({ chatText })}
+              style={{
+                flex: 1,
+                color: Color.textColor,
+                fontFamily: 'Archivo',
+                fontSize: 14,
+                backgroundColor: Color.white,
+                paddingVertical: 6,
+                paddingHorizontal: 15,
+                minHeight: 45,
+                maxHeight: 90,
+                borderRadius: 45 / 2,
+                elevation: 1,
+              }}
+              placeholderTextColor={Color.textHint}
+              placeholder="Masukkan pesan"
+            />
+          )}
+          {this.state.status === 'completed' ||
+          this.state.status === 'cancelled_by_driver' ||
+          this.state.status === 'cancelled_by_user' ? (
+            <View
+              style={{
+                width: 45,
+                height: 45,
+                marginLeft: 10,
+                borderRadius: 45 / 2,
+                backgroundColor: Color.gray,
+                alignItems: 'center',
+                justifyContent: 'center',
+                elevation: 1,
+                overflow: 'hidden',
+              }}
+            >
+              <Fa
+                iconStyle="solid"
+                size={18}
+                color={colorYiq(Color.gray)}
+                name="paper-plane"
               />
-            )}
-            {this.state.status === 'completed' ||
-            this.state.status === 'cancelled_by_driver' ||
-            this.state.status === 'cancelled_by_user' ? (
+            </View>
+          ) : (
+            <TouchableNativeFeedback
+              onPress={this._onSendChat}
+              useForeground={true}
+              background={TouchableNativeFeedback.Ripple(
+                'rgba(0,0,0,.25',
+                false,
+              )}
+            >
               <View
                 style={{
                   width: 45,
                   height: 45,
                   marginLeft: 10,
                   borderRadius: 45 / 2,
-                  backgroundColor: Color.gray,
+                  backgroundColor: Color.secondary,
                   alignItems: 'center',
                   justifyContent: 'center',
                   elevation: 1,
@@ -580,44 +606,14 @@ class Chat extends Component {
                 <Fa
                   iconStyle="solid"
                   size={18}
-                  color={colorYiq(Color.gray)}
+                  color={colorYiq(Color.secondary)}
                   name="paper-plane"
                 />
               </View>
-            ) : (
-              <TouchableNativeFeedback
-                onPress={this._onSendChat}
-                useForeground={true}
-                background={TouchableNativeFeedback.Ripple(
-                  'rgba(0,0,0,.25',
-                  false,
-                )}
-              >
-                <View
-                  style={{
-                    width: 45,
-                    height: 45,
-                    marginLeft: 10,
-                    borderRadius: 45 / 2,
-                    backgroundColor: Color.secondary,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    elevation: 1,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <Fa
-                    iconStyle="solid"
-                    size={18}
-                    color={colorYiq(Color.secondary)}
-                    name="paper-plane"
-                  />
-                </View>
-              </TouchableNativeFeedback>
-            )}
-          </View>
+            </TouchableNativeFeedback>
+          )}
         </View>
-      </KeyboardSafeView>
+      </View>
     );
   }
 }

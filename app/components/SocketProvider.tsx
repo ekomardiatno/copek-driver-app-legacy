@@ -148,15 +148,34 @@ export default function SocketProvider({
             {isConnecting ? (
               <Spinner size={50} type="Circle" />
             ) : (
-              <TouchableOpacity
-                onPress={() => {
-                  socket.connect();
-                }}
-              >
-                <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
-                  Coba lagi
+              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                <FontAwesome5
+                  iconStyle="solid"
+                  name="exclamation-triangle"
+                  color={Color.red}
+                  size={40}
+                />
+                <Text style={{ fontSize: 16, fontWeight: '300', marginTop: 8 }}>
+                  Server tidak tersedia
                 </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setIsConnecting(true);
+                    socket.connect();
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 'bold',
+                      color: Color.red,
+                      marginTop: 8,
+                    }}
+                  >
+                    Coba lagi
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         )}
@@ -180,21 +199,19 @@ export default function SocketProvider({
                 right: 0,
                 bottom: 0,
                 backgroundColor: Color.white,
-                opacity: 0.5,
               }}
             />
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
               <FontAwesome5
                 iconStyle="solid"
-                color={Color.red}
                 name="exclamation-triangle"
-                size={50}
+                color={Color.red}
+                size={40}
               />
-              <Text style={{ fontSize: 18, marginTop: 10, fontWeight: '600' }}>
-                Gagal terhubung ke server
+              <Text style={{ fontSize: 16, fontWeight: '300', marginTop: 8 }}>
+                Server tidak tersedia
               </Text>
               <TouchableOpacity
-                style={{ marginTop: 10 }}
                 onPress={() => {
                   AsyncStorage.getItem('user_logged_in').then(item => {
                     if (item) {
@@ -204,7 +221,16 @@ export default function SocketProvider({
                   });
                 }}
               >
-                <Text style={{ color: Color.red }}>Coba lagi</Text>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: Color.red,
+                    marginTop: 8,
+                  }}
+                >
+                  Coba lagi
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -214,4 +240,4 @@ export default function SocketProvider({
   );
 }
 
-export const useSocket = () => useContext(SocketContext)
+export const useSocket = () => useContext(SocketContext);
